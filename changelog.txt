@@ -1,0 +1,31 @@
+date : 11/22/2025 3:03 AM
+
+    event : initiated program
+
+    changelog : 
+        making a custom One Hot Encoding module, and some data exploration,
+        done dealing with compound label
+
+    next task : 
+        deeper data exploration, especially on salary_range_usd and posted_date
+
+date : 11/22/2025 11:31 PM
+
+    event : complete yesterday task
+    
+    changelog :
+        the troughout exploration is made, some feature handling change from
+        reconsideration that some data has hirarchy
+
+    next task :
+        location feature, its obliviously america location, try to convert each
+        region into one hot encoder (if possible, or just didnt use it altogether)
+
+date : 11/30/2025 11:32 PM
+    event : build the implementation
+
+    changelog :
+        implement the project into a app, base structure is done
+
+    next task :
+        completing the project, streamlit implementation and report tool
