@@ -3,23 +3,12 @@ from .__data_retrieve import RetrieveDataset
 from .__model import KmeansModel
 from .__data_prepocessing import ProcessData
 from .__autoencoder import Transformer
-from .__crawler import Crawlers
-from numpy import ndarray, prod
 
 class JobRecomendation:
     def __init__(self, filename=""):
-        self.filename = filename
         self.df = None
-        self.preprocessing = Preprocessing
-        self.retrieve_dataset = RetrieveDataset
-        self.process_data = ProcessData
-        self.result_on_each_filter = []
-        self.data_size = 0
-        
-    def initiate(self):
         try:
-            self.df = self.retrieve_dataset.get_DataFrame(
-                "src/data/" + self.filename)
+            self.df = RetrieveDataset.get_DataFrame("src/data/" + filename)
         except:
             print("File Not Founded")
 
@@ -27,10 +16,29 @@ class JobRecomendation:
 
         self.df = self.__first_step(self.df)
 
-        self.__last_step()
+    def getData(self, employment_type="", hardness_level=None):
+        result = None
+        if(hardness_level != None):
+            try:
+                result = self.result_on_each_employment_level[
+                    self.get_employment_hirarchy_label(
+                        employment_type=employment_type)][
+                            self.result_on_each_employment_level[
+                                self.get_employment_hirarchy_label(
+                                employment_type=employment_type)][
+                                    "label"] == hardness_level]
+            except:
+                result = "that employment type didn't exist"
+        else:
+            try:
+                result = self.result_on_each_employment_level[
+                    self.employment_type_hirarchy[employment_type]]
+            except:
+                result = "that employment type didn't exist"
+        return result
     
     def __first_step(self,df=DataFrame([])):
-        list_one_hot_data = self.preprocessing.one_hot_encoder(
+        list_one_hot_data = Preprocessing.one_hot_encoder(
             df=df, feature_list=[
                 "skills_required", "tools_preferred", "industry", "job_title"
             ], dataframe_result=[
@@ -38,7 +46,7 @@ class JobRecomendation:
             ]
         )
 
-        salary_range_usd = self.preprocessing.mean_of_columns(
+        salary_range_usd = Preprocessing.mean_of_columns(
             df=df, used_columns="salary_range_usd")
 
         used_df = df.copy()
@@ -52,7 +60,7 @@ class JobRecomendation:
         self.employment_type_hirarchy = {
             'Internship':0,'Contract':1, 'Full-time':2, 'Remote':3}
         
-        used_df = self.preprocessing.batch_label_encoding_process(
+        used_df = Preprocessing.batch_label_encoding_process(
             df=used_df, columns=[
                 "experience_level", "company_size", "employment_type"
             ], filters=[
@@ -66,18 +74,18 @@ class JobRecomendation:
         "job_title", "salary_range_usd", 
         "company_name", "location", "posted_date", "job_id"]
 
-        used_df = self.process_data.dropColumns(df=used_df, columns=dropped_columns)
+        used_df = ProcessData.dropColumns(df=used_df, columns=dropped_columns)
 
         combined_data = DataFrame([])
 
         for i in list_one_hot_data:
-            combined_data = self.process_data.combineDataFrame(
+            combined_data = ProcessData.combineDataFrame(
                 [combined_data, i], axis=1)
 
-        used_df = self.process_data.combineDataFrame(
+        used_df = ProcessData.combineDataFrame(
             [used_df, combined_data], axis=1)
 
-        used_df = self.process_data.combineDataFrame(
+        used_df = ProcessData.combineDataFrame(
             [used_df, salary_range_usd], axis=1)
 
         self.employment_datas = self.combined_filters(
@@ -88,14 +96,6 @@ class JobRecomendation:
                 self.generate_experience_level_list
             ]
         )
-
-        crawler_obj = Crawlers()
-
-        crawler_obj.flatten_list(self.employment_datas)
-
-        self.employment_datas = crawler_obj.get_result()
-
-        self.data_size = len(self.employment_datas)
 
         return used_df
     
@@ -131,70 +131,90 @@ class JobRecomendation:
             ]
         return result
 
+
     def __last_step(self):
-        index_data_list = [i.index for i in self.employment_datas]
+        obj = Crawlers()
 
-        self.scaler = self.process_data.scalling(
-            self.df.copy().drop([
-                "experience_level", "company_size", 
-                "employment_type"], 
-            axis=1), "Min Max Scaler")
+        obj.normal_crawler(x=self.employment_datas)
 
-        self.autoencoder = self.preprocessing.dimensional_reduction_generation(
-            self.employment_datas, scaler=self.scaler, types="autoencoder")
+        index_data_list = obj.get_result 
 
-        self.model_list = self.preprocessing.kmeans_generation(
-            self.employment_datas, self.preprocessing_implementation, n_cluster=3)
+        obj.flush()
 
-        result_respect_to_filter = [self.__model_applicator(
-                self.employment_datas[i], self.model_list[i]
-            ) for i in self.data_size]
+        self.scaler = ProcessData.scalling(self.df.copy().drop(
+            "employment_type", axis=1), "Min Max Scaler")
 
-        self.result_on_each_filter = [
-            self.process_data.combineDataFrame(
-                [self.employment_datas[i], 
-                    DataFrame(data=result_respect_to_filter[i], 
-                        columns=["label"],index=index_data_list[i])],
-                axis=1) for i in self.data_size]
+        index = 0
 
-    def __model_applicator(self,x=DataFrame([]),
-            model=KmeansModel.predict):
-        return model(self.preprocessing_implementation(x))
+        self.autoencoder = Preprocessing.autoencoder_generation(
+            self.employment_datas, scaler=self.scaler)
+
+        self.model_list = Preprocessing.kmeans_generation(
+            self.employment_datas, self.preprocessing_implementation)
+
+        result_respect_to_employment_level = []
+
+        index = 0
+
+        #next task : join crawler with this prediction
+
+        for i in self.employment_datas:
+            result_respect_to_employment_level.append(
+                self.model_list[index].predict(
+                    self.preprocessing_implementation(i)))
+            index += 1
+
+        self.result_on_each_employment_level = []
+
+        employment_type_list = [
+            i for i in self.employment_type_hirarchy.keys()]
+
+        index = 0
+
+        for i in result_respect_to_employment_level:
+            self.result_on_each_employment_level.append(
+                ProcessData.combineDataFrame(
+                    [result[result[
+                        "employment_type"] == employment_type_list[index]],
+                    DataFrame(
+                        i, 
+                        columns=["label"], index=index_data_list[index])]
+                , axis=1))
+            index += 1
     
-    def get_employment_type_hirarchy_label(self,employment_type="") -> int:
+    def get_employment_hirarchy_label(self,employment_type=""):
         return self.employment_type_hirarchy[employment_type]
     
-    def get_company_size_label(self, company_size="") -> int:
-        return self.company_size_hirarchy[company_size]
-    
-    def get_experience_level_label(self, experience_level) -> int:
-        return self.experience_level_hirarchy[experience_level]
-    
-    def preprocessing_implementation(
-            self, x=DataFrame([])) -> DataFrame | ndarray:
+    def preprocessing_implementation(self, x=DataFrame([])):
         return self.autoencoder.get_result(
             self.scaler.transform(x))
     
-    def getData(self, employment_type="",company_size="",experience_level="", 
-            hardness_level=None):
-        result = None
-        index = prod([
-                    self.get_employment_type_hirarchy_label(employment_type),
-                    self.get_company_size_label(company_size),
-                    self.get_experience_level_label(experience_level)
-                ]) - 1
-        if(hardness_level != None):
-            try:
-                result = self.result_on_each_filter[index]
-                result = result[result["label"] == hardness_level]
-            except:
-                result = "that employment type didn't exist"
-        else:
-            try:
-                result = self.result_on_each_filter[index]
-            except:
-                result = "that employment type didn't exist"
-        return result
+
+class Crawlers:
+    def __init__(self,n_cluster=3):
+        self.n_cluster = n_cluster
+        self.result = []
+
+    def flush(self):
+        self.temp = []
+
+    def get_result(self):
+        return self.result
+
+    def crawler_kmeans(self,x=[], func=lambda x:x):
+        for i in x:
+            if(type(i) == list):
+                self.crawler_kmeans(i, func=func)
+            else:
+                self.result.append(
+                    KmeansModel(func(i), self.n_cluster))
+
+    def normal_crawler(self,x=[], func=lambda x:x):
+        for i in x:
+            if(type(i) == list):
+                self.normal_crawler(i, func=func)
+            else:
+                self.result.append(func(i))
 class Preprocessing:
     @staticmethod
     def one_hot_encoder(
@@ -243,36 +263,29 @@ class Preprocessing:
         return df
     
     @staticmethod
-    def dimensional_reduction_generation(
+    def autoencoder_generation(
         x=DataFrame([]),
-        scaler=ProcessData.scalling, types="pca"):
-        result = x
-        match types:
-            case "autoencoder":
-                hidden_layer =  [32 ,16, 8]
-                loss = ""
-                epoch = 5
-                to_shape = 4
+        scaler=ProcessData.scalling):
+        hidden_layer =  [32 ,16, 8]
+        loss = ""
+        epoch = 5
+        to_shape = 4
 
-                result = Transformer.transform(
-                scaler.transform(result), input_shape=x.shape[1], 
-                to_shape=to_shape, hidden_layer=hidden_layer, 
-                loss=loss, epoch=epoch)
-            case "pca":
-                n_components = 4
+        autoencoder = Transformer.transform(
+        scaler.transform(x), input_shape=x.shape[1], 
+        to_shape=to_shape, hidden_layer=hidden_layer, 
+        loss=loss, epoch=epoch)
 
-                result = ProcessData.pcaDimentionalityReduction(
-                    scaler.transform(result), n_components=n_components
-                )
-
-        return result
+        return autoencoder
     
     @staticmethod
     def kmeans_generation(
         x=[], 
-        preprocessing_implementation=JobRecomendation.preprocessing_implementation,
+        preprocessing_implementation=lambda x:x,
         n_cluster=3):
-    
-        return [KmeansModel(
-                df=preprocessing_implementation(i), 
-                n_cluster=n_cluster) for i in x]
+
+        crawler = Crawlers(n_cluster=n_cluster)
+        
+        crawler.crawler_kmeans(x=x, func=preprocessing_implementation)
+         
+        return crawler.get_result()

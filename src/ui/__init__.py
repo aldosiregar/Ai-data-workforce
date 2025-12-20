@@ -1,0 +1,1 @@
+from .__main_page import MainPage

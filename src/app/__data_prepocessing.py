@@ -69,27 +69,25 @@ class ProcessData:
     
     @staticmethod
     def pcaDimentionalityReduction(
-        df=DataFrame([]),n_components=3) -> tuple:
+        df=DataFrame([]),n_components=3) -> PCA:
         """
         return : tuple (numpy, PCA)
         """
         decomposer = PCA(n_components=n_components)
         decomposer.fit(df)
-        return (
-            DataFrame(
-                decomposer.fit_transform(df), columns=["pca_" + str(df.columns.name)]), 
-            decomposer)
+
+        return decomposer
     
     @staticmethod
-    def combineDataFrame(data=DataFrame([]), axis=1) -> DataFrame:
-        return concat([data],axis=axis)
+    def combineDataFrame(data=[], axis=1) -> DataFrame:
+        return concat(data,axis=axis)
 
     @staticmethod
     def labelEncoding(df=DataFrame([]),format=dict) -> DataFrame:
         return df.map(format)
     
     @staticmethod
-    def scalling(df=DataFrame([]), type="") -> tuple:
+    def scalling(df=DataFrame([]), type=""):
         scaler = None
         match type:
             case "Standard Scaler":
@@ -102,4 +100,4 @@ class ProcessData:
                 scaler = StandardScaler()
                 
         scaler.fit(df)
-        return (scaler.transform(df), scaler)
+        return scaler
