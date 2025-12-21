@@ -41,16 +41,16 @@ class JobRecomendation:
         salary_range_usd = self.preprocessing.mean_of_columns(
             df=df, used_columns="salary_range_usd")
 
-        used_df = df.copy()
+        used_df = self.df.copy()
 
         self.experience_level_hirarchy = {
-            "Entry":0, "Mid":1, "Senior":2}
+            "Entry":1, "Mid":2, "Senior":3}
 
         self.company_size_hirarchy = {
-            'Startup':0, 'Mid':1, 'Large':2}
+            'Startup':1, 'Mid':2, 'Large':3}
 
         self.employment_type_hirarchy = {
-            'Internship':0,'Contract':1, 'Full-time':2, 'Remote':3}
+            'Internship':1,'Contract':2, 'Full-time':3, 'Remote':4}
         
         used_df = self.preprocessing.batch_label_encoding_process(
             df=used_df, columns=[
@@ -82,10 +82,12 @@ class JobRecomendation:
 
         self.employment_datas = self.combined_filters(
             df=used_df,
-            items=[
-                self.generate_employment_type_list,
-                self.generate_company_size_list,
-                self.generate_experience_level_list
+            func=self.generate_list_from_dict,
+            columns = [
+                "experience_level", "company_size", "employment_type"
+            ], filters = [
+                self.experience_level_hirarchy, self.company_size_hirarchy,
+                self.employment_type_hirarchy
             ]
         )
 
@@ -99,36 +101,29 @@ class JobRecomendation:
 
         return used_df
     
-    def generate_company_size_list(self,df=DataFrame([])):
-        return [
-            df[df["company_size"] == i].copy().drop(
-                ["company_size"], axis=1
-            ) for i in self.company_size_hirarchy.values
-        ]
+    def generate_list_from_dict(
+            self,df=DataFrame([]), column="", filters=dict):
+        return [df[df[column] == i].copy().drop(
+                [column], axis=1) for i in filters.values()]
     
-    def generate_experience_level_list(
-        self,df=DataFrame([])) -> list:
-        return [
-            df[df["experience_level"] == i].copy().drop(
-                ["experience_level"], axis=1
-            ) for i in self.experience_level_hirarchy.values
-        ]
-    
-    def generate_employment_type_list(
-        self, df=DataFrame([])) -> list:
-        return [
-            df[df["employment_type"] == i].copy().drop(
-                ["employment_type"], axis=1
-            ) for i in self.employment_type_hirarchy.values
-        ]
-    
-    def combined_filters(self,df=DataFrame([]),items=[]):
-        if len(items) == 1 : return  items[0](df)
-        result = items[0](df)
-        for i in items[1:]:
-            result = [
-                i(j) for j in result
-            ]
+    def combined_filters(
+            self,df=DataFrame([]),func=generate_list_from_dict, columns=[str], 
+            filters=[dict]):
+        result = None
+        if(len(columns) == len(filters)):
+            if(len(columns) == 1):
+                result = func(df, columns[0], filters[0])
+            else:
+                result = func(df, columns[0], filters[0])
+                obj = Crawlers()
+                columns = columns[1:]
+                for i in range(len(columns)):
+                    obj.flatten_list()
+                    obj.nested_list_filters_applicator(
+                        x=result, func=func, column=columns[i], filters=filters[i]
+                    )
+                    result = obj.get_result()
+                    obj.flush()
         return result
 
     def __last_step(self):
@@ -141,34 +136,37 @@ class JobRecomendation:
             axis=1), "Min Max Scaler")
 
         self.autoencoder = self.preprocessing.dimensional_reduction_generation(
-            self.employment_datas, scaler=self.scaler, types="autoencoder")
+            x=self.df.copy().drop([
+                "experience_level", "company_size", 
+                "employment_type"], 
+            axis=1), scaler=self.scaler, types="autoencoder")
 
         self.model_list = self.preprocessing.kmeans_generation(
             self.employment_datas, self.preprocessing_implementation, n_cluster=3)
 
         result_respect_to_filter = [self.__model_applicator(
                 self.employment_datas[i], self.model_list[i]
-            ) for i in self.data_size]
+            ) for i in range(self.data_size)]
 
         self.result_on_each_filter = [
             self.process_data.combineDataFrame(
-                [self.employment_datas[i], 
+                [self.result.iloc[index_data_list[i]], 
                     DataFrame(data=result_respect_to_filter[i], 
                         columns=["label"],index=index_data_list[i])],
-                axis=1) for i in self.data_size]
+                axis=1) for i in range(self.data_size)]
 
     def __model_applicator(self,x=DataFrame([]),
-            model=KmeansModel.predict):
-        return model(self.preprocessing_implementation(x))
+            model=KmeansModel):
+        return model.predict(self.preprocessing_implementation(x))
     
-    def get_employment_type_hirarchy_label(self,employment_type="") -> int:
-        return self.employment_type_hirarchy[employment_type]
+    def get_employment_type_keys(self) -> dict:
+        return self.employment_type_hirarchy.keys()
     
-    def get_company_size_label(self, company_size="") -> int:
-        return self.company_size_hirarchy[company_size]
+    def get_company_size_keys(self) -> dict:
+        return self.company_size_hirarchy.keys()
     
-    def get_experience_level_label(self, experience_level) -> int:
-        return self.experience_level_hirarchy[experience_level]
+    def get_experience_level_keys(self) -> dict:
+        return self.experience_level_hirarchy.keys()
     
     def preprocessing_implementation(
             self, x=DataFrame([])) -> DataFrame | ndarray:
@@ -179,9 +177,9 @@ class JobRecomendation:
             hardness_level=None):
         result = None
         index = prod([
-                    self.get_employment_type_hirarchy_label(employment_type),
-                    self.get_company_size_label(company_size),
-                    self.get_experience_level_label(experience_level)
+                    self.employment_type_hirarchy[employment_type],
+                    self.company_size_hirarchy[company_size],
+                    self.experience_level_hirarchy[experience_level]
                 ]) - 1
         if(hardness_level != None):
             try:
@@ -226,10 +224,9 @@ class Preprocessing:
 
     @staticmethod
     def label_encoding(
-        df=DataFrame([]), columns_name="", 
-        filter_dict=dict) -> DataFrame:
+        df=DataFrame([]), filter_dict=dict) -> DataFrame:
         return ProcessData.labelEncoding(
-            df[columns_name], filter_dict)
+            df=df, format=filter_dict)
     
     @staticmethod
     def batch_label_encoding_process(
@@ -237,9 +234,7 @@ class Preprocessing:
         filters=[dict]) -> DataFrame:
         for i in range(len(columns)):
             df[columns[i]] = Preprocessing.label_encoding(
-                df[columns[i]], columns_name=columns[i],
-                filters=filters[i]
-            )
+                df[columns[i]],filter_dict=filters[i])
         return df
     
     @staticmethod

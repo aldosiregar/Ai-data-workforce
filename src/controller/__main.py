@@ -19,4 +19,6 @@ class PageNavigation:
 class InitiatedModel:
     @cache_resource
     def initiated_model(filename=""):
-        return JobRecomendation(filename=filename)
+        obj = JobRecomendation(filename=filename)
+        obj.initiate()
+        return obj
