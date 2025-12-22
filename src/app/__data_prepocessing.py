@@ -71,7 +71,7 @@ class ProcessData:
     def pcaDimentionalityReduction(
         df=DataFrame([]),n_components=3) -> PCA:
         """
-        return : tuple (numpy, PCA)
+        return : PCA
         """
         decomposer = PCA(n_components=n_components)
         decomposer.fit(df)

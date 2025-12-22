@@ -4,18 +4,51 @@ from .__model import KmeansModel
 from .__data_prepocessing import ProcessData
 from .__autoencoder import Transformer
 from .__crawler import Crawlers
-from numpy import ndarray, prod
+from numpy import ndarray
 
 class JobRecomendation:
     def __init__(self, filename=""):
         self.filename = filename
+
         self.df = None
+
         self.preprocessing = Preprocessing
+
         self.retrieve_dataset = RetrieveDataset
+
         self.process_data = ProcessData
+
         self.result_on_each_filter = []
-        self.data_size = 0
+
+        self.filter_column_name =[
+            "experience_level", "company_size","employment_type"]
         
+        self.data_size = 0
+
+        self.experience_level_hirarchy = {
+            "Entry":1, "Mid":2, "Senior":3}
+
+        self.company_size_hirarchy = {
+            'Startup':1, 'Mid':2, 'Large':3}
+
+        self.employment_type_hirarchy = {
+            'Internship':1,'Contract':2, 'Full-time':3, 'Remote':4}
+        
+        self.filters_dict_in_list = [
+                self.experience_level_hirarchy, self.company_size_hirarchy,
+                self.employment_type_hirarchy
+            ]
+        
+        self.dropped_columns = [
+        "skills_required", "tools_preferred", "industry", 
+        "job_title", "salary_range_usd", 
+        "company_name", "location", "posted_date", "job_id"]
+        
+        self.one_hot_column = ["skills_required", "tools_preferred", 
+                               "industry", "job_title"]
+        
+        self.mean_numeric = ["salary_range_usd"]
+
     def initiate(self):
         try:
             self.df = self.retrieve_dataset.get_DataFrame(
@@ -31,42 +64,20 @@ class JobRecomendation:
     
     def __first_step(self,df=DataFrame([])):
         list_one_hot_data = self.preprocessing.one_hot_encoder(
-            df=df, feature_list=[
-                "skills_required", "tools_preferred", "industry", "job_title"
-            ], dataframe_result=[
-                "skills_required", "tools_preferred", "industry", "job_title" 
-            ]
+            df=df, feature_list=self.one_hot_column, 
+            dataframe_result=self.one_hot_column
         )
 
         salary_range_usd = self.preprocessing.mean_of_columns(
-            df=df, used_columns="salary_range_usd")
+            df=df, used_columns=self.mean_numeric)
 
         used_df = self.df.copy()
-
-        self.experience_level_hirarchy = {
-            "Entry":1, "Mid":2, "Senior":3}
-
-        self.company_size_hirarchy = {
-            'Startup':1, 'Mid':2, 'Large':3}
-
-        self.employment_type_hirarchy = {
-            'Internship':1,'Contract':2, 'Full-time':3, 'Remote':4}
         
         used_df = self.preprocessing.batch_label_encoding_process(
-            df=used_df, columns=[
-                "experience_level", "company_size", "employment_type"
-            ], filters=[
-                self.experience_level_hirarchy, self.company_size_hirarchy,
-                self.employment_type_hirarchy
-            ]
+            df=used_df, columns=self.filter_column_name, filters=self.filters_dict_in_list
         )
-        
-        dropped_columns = [
-        "skills_required", "tools_preferred", "industry", 
-        "job_title", "salary_range_usd", 
-        "company_name", "location", "posted_date", "job_id"]
 
-        used_df = self.process_data.dropColumns(df=used_df, columns=dropped_columns)
+        used_df = self.process_data.dropColumns(df=used_df, columns=self.dropped_columns)
 
         combined_data = DataFrame([])
 
@@ -83,12 +94,8 @@ class JobRecomendation:
         self.employment_datas = self.combined_filters(
             df=used_df,
             func=self.generate_list_from_dict,
-            columns = [
-                "experience_level", "company_size", "employment_type"
-            ], filters = [
-                self.experience_level_hirarchy, self.company_size_hirarchy,
-                self.employment_type_hirarchy
-            ]
+            columns = self.filter_column_name, 
+            filters = self.filters_dict_in_list
         )
 
         crawler_obj = Crawlers()
@@ -117,6 +124,7 @@ class JobRecomendation:
                 result = func(df, columns[0], filters[0])
                 obj = Crawlers()
                 columns = columns[1:]
+                filters = filters[1:]
                 for i in range(len(columns)):
                     obj.flatten_list()
                     obj.nested_list_filters_applicator(
@@ -130,15 +138,11 @@ class JobRecomendation:
         index_data_list = [i.index for i in self.employment_datas]
 
         self.scaler = self.process_data.scalling(
-            self.df.copy().drop([
-                "experience_level", "company_size", 
-                "employment_type"], 
+            self.df.copy().drop(self.filter_column_name, 
             axis=1), "Min Max Scaler")
 
         self.autoencoder = self.preprocessing.dimensional_reduction_generation(
-            x=self.df.copy().drop([
-                "experience_level", "company_size", 
-                "employment_type"], 
+            x=self.df.copy().drop(self.filter_column_name, 
             axis=1), scaler=self.scaler, types="autoencoder")
 
         self.model_list = self.preprocessing.kmeans_generation(
@@ -148,12 +152,15 @@ class JobRecomendation:
                 self.employment_datas[i], self.model_list[i]
             ) for i in range(self.data_size)]
 
-        self.result_on_each_filter = [
+        result_on_each_filter = [
             self.process_data.combineDataFrame(
                 [self.result.iloc[index_data_list[i]], 
                     DataFrame(data=result_respect_to_filter[i], 
                         columns=["label"],index=index_data_list[i])],
                 axis=1) for i in range(self.data_size)]
+
+        self.result = self.process_data.combineDataFrame(
+            result_on_each_filter, axis=0).sort_index()
 
     def __model_applicator(self,x=DataFrame([]),
             model=KmeansModel):
@@ -173,23 +180,15 @@ class JobRecomendation:
         return self.autoencoder.get_result(
             self.scaler.transform(x))
     
-    def getData(self, employment_type="",company_size="",experience_level="", 
-            hardness_level=None):
-        result = None
-        index = prod([
-                    self.employment_type_hirarchy[employment_type],
-                    self.company_size_hirarchy[company_size],
-                    self.experience_level_hirarchy[experience_level]
-                ]) - 1
+    def getData(self, filters=[str], hardness_level=None):
+        result = self.result
+        if(len(filters) == len(self.filter_column_name)):
+            for i in range(len(filters)):
+                result = result[
+                    result[self.filter_column_name[i]] == filters[i]]
         if(hardness_level != None):
             try:
-                result = self.result_on_each_filter[index]
                 result = result[result["label"] == hardness_level]
-            except:
-                result = "that employment type didn't exist"
-        else:
-            try:
-                result = self.result_on_each_filter[index]
             except:
                 result = "that employment type didn't exist"
         return result
@@ -212,7 +211,6 @@ class Preprocessing:
         if(type(used_columns) == str):
             #get the data that want to be splitted
             salary_range_usd = df[used_columns].copy()
-
             return DataFrame(DataFrame(salary_range_usd.map(
                 arg=lambda x: [int(i) for i in str.split(x, sep="-")]
             ).to_list(), columns=[
