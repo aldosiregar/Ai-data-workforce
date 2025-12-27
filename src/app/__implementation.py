@@ -1,6 +1,6 @@
 from pandas import DataFrame
 from .__data_retrieve import RetrieveDataset
-from .__model import KmeansModel
+from .__model import KmeansModel, DbScanModel
 from .__data_prepocessing import ProcessData
 from .__autoencoder import Transformer
 from .__crawler import Crawlers
@@ -20,7 +20,7 @@ class JobRecomendation:
 
         self.result_on_each_filter = []
 
-        self.filter_column_name =[
+        self.filter_column_name = [
             "experience_level", "company_size","employment_type"]
         
         self.data_size = 0
@@ -48,6 +48,12 @@ class JobRecomendation:
                                "industry", "job_title"]
         
         self.mean_numeric = ["salary_range_usd"]
+
+        self.model_type = "kmeans"
+
+        self.n_cluster = 3
+
+        self.min_sample = 5
 
     def initiate(self):
         try:
@@ -90,31 +96,41 @@ class JobRecomendation:
 
         used_df = self.process_data.combineDataFrame(
             [used_df, salary_range_usd], axis=1)
-
-        self.employment_datas = self.combined_filters(
+        
+        self.employment_datas = JobRecomendation.applied_filters_to_dataframe(
             df=used_df,
             func=self.generate_list_from_dict,
             columns = self.filter_column_name, 
             filters = self.filters_dict_in_list
         )
 
-        crawler_obj = Crawlers()
-
-        crawler_obj.flatten_list(self.employment_datas)
-
-        self.employment_datas = crawler_obj.get_result()
-
         self.data_size = len(self.employment_datas)
 
         return used_df
     
+    @staticmethod
+    def applied_filters_to_dataframe(
+        df=DataFrame([]),func=lambda x: x, 
+        columns=[str], filters=[dict]) -> list:
+        result = JobRecomendation.combined_filters(
+            df=df, func=func, columns=columns, filters=filters
+        )
+
+        crawler_obj = Crawlers()
+
+        crawler_obj.flatten_list(result)
+
+        return crawler_obj.get_result()
+
+    @staticmethod
     def generate_list_from_dict(
-            self,df=DataFrame([]), column="", filters=dict):
+            df=DataFrame([]), column="", filters=dict):
         return [df[df[column] == i].copy().drop(
                 [column], axis=1) for i in filters.values()]
     
+    @staticmethod
     def combined_filters(
-            self,df=DataFrame([]),func=generate_list_from_dict, columns=[str], 
+            df=DataFrame([]),func=generate_list_from_dict, columns=[str], 
             filters=[dict]):
         result = None
         if(len(columns) == len(filters)):
@@ -145,8 +161,20 @@ class JobRecomendation:
             x=self.df.copy().drop(self.filter_column_name, 
             axis=1), scaler=self.scaler, types="autoencoder")
 
-        self.model_list = self.preprocessing.kmeans_generation(
-            self.employment_datas, self.preprocessing_implementation, n_cluster=3)
+        match self.model_type:
+            case "kmeans":
+                self.model_list = self.preprocessing.model_generation(
+                    x=self.employment_datas, 
+                    preprocessing_implementation=self.preprocessing_implementation,
+                    model_type=self.model_type, 
+                    n_cluster=self.n_cluster)
+            case "dbscan":
+                self.model_list = self.preprocessing.model_generation(
+                    x=self.employment_datas,
+                    preprocessing_implementation=self.preprocessing_implementation,
+                    model_type=self.model_type,
+                    min_sample=self.min_sample
+                )
 
         result_respect_to_filter = [self.__model_applicator(
                 self.employment_datas[i], self.model_list[i]
@@ -192,6 +220,7 @@ class JobRecomendation:
             except:
                 result = "that employment type didn't exist"
         return result
+    
 class Preprocessing:
     @staticmethod
     def one_hot_encoder(
@@ -261,11 +290,21 @@ class Preprocessing:
         return result
     
     @staticmethod
-    def kmeans_generation(
+    def model_generation(
         x=[], 
         preprocessing_implementation=JobRecomendation.preprocessing_implementation,
-        n_cluster=3):
-    
-        return [KmeansModel(
-                df=preprocessing_implementation(i), 
-                n_cluster=n_cluster) for i in x]
+        model_type="kmeans",
+        n_cluster=3, min_sample=5):
+        result = None
+
+        match model_type:
+            case "kmeans":
+                result =  [KmeansModel(
+                        df=preprocessing_implementation(i), 
+                        n_cluster=n_cluster) for i in x]
+            case "dbscan":
+                result = [DbScanModel(
+                        df=preprocessing_implementation(i), 
+                        n_cluster=n_cluster) for i in x]
+                
+        return result

@@ -32,6 +32,7 @@ class ElbowMethod:
         title('The Elbow Method using Distortion')
         show()
 
+    """
     @staticmethod
     def derivation_report(x=DataFrame([])):
         distortions = []
@@ -67,6 +68,7 @@ class ElbowMethod:
         ylabel('Change')
         title('The Elbow Method distortion change')
         show()
+        """
     
 class CurveFitting:
     @staticmethod
