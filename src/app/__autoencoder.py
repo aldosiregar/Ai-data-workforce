@@ -24,6 +24,9 @@ class Autoencoder(Model):
             self.encoder.add(layers.Dense(i, activation="relu")),
             self.encoder.add(layers.Dropout(0.3))
         
+        print(to_shape)
+        print(type(to_shape))
+
         self.encoder.add(layers.Dense(to_shape, activation="linear"))
 
         #decoder
