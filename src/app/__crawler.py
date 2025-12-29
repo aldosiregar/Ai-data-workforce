@@ -5,7 +5,7 @@ class Crawlers:
 
     def flush(self):
         """
-        reset the 
+        reset the properties of result and index
         """
         self.result = []
         self.index = 0
@@ -25,6 +25,7 @@ class Crawlers:
         a function to flatten the nested list
 
         parameter :
+
         x = a nested list
         """
         for i in x:

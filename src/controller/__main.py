@@ -1,15 +1,15 @@
 from ..ui import MainPage
-from streamlit import navigation, markdown, cache_resource
+from streamlit import navigation, cache_resource
 from ..app import JobRecomendation
 
 class PageNavigation:
-    def __init__(self, filename=""):
+    def __init__(self, dataset="", retrieval_types=""):
         """
-        initiate page ui
+        initiate navigation section
         """
-
         #pass the prediction model to main page
-        self.Job_recomendation = InitiatedModel.initiated_model(filename)
+        self.Job_recomendation = InitiatedModel.initiated_model(
+            dataset=dataset,retrieval_types=retrieval_types)
 
         all_pg = navigation([self.Job_recomendation_page])
 
@@ -32,7 +32,8 @@ class InitiatedModel:
     obj : JobRecomendation class
     """
     @cache_resource
-    def initiated_model(filename=""):
-        obj = JobRecomendation(filename=filename)
+    def initiated_model(dataset="", retrieval_types="file"):
+        obj = JobRecomendation(
+            dataset=dataset, retrieval_types=retrieval_types)
         obj.initiate()
         return obj

@@ -18,3 +18,24 @@ class DbScanModel:
 
     def predict(self, df=DataFrame([]))-> array:
         return self.model.fit_predict(df)
+    
+class ModelGeneration:
+    @staticmethod
+    def model_generation(
+        x=[], 
+        preprocessing_implementation=lambda x:x,
+        model_type="kmeans",
+        n_cluster=3, min_sample=5):
+        result = None
+
+        match model_type:
+            case "kmeans":
+                result =  [KmeansModel(
+                        df=preprocessing_implementation(i), 
+                        n_cluster=n_cluster) for i in x]
+            case "dbscan":
+                result = [DbScanModel(
+                        df=preprocessing_implementation(i), 
+                        min_sample=min_sample) for i in x]
+                
+        return result

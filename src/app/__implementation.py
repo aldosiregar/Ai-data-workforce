@@ -1,42 +1,85 @@
 from pandas import DataFrame
 from .__data_retrieve import RetrieveDataset
-from .__model import KmeansModel, DbScanModel
+from .__model import KmeansModel, DbScanModel, ModelGeneration
 from .__data_prepocessing import ProcessData
-from .__autoencoder import Transformer
 from .__crawler import Crawlers
 from numpy import ndarray
 
 class JobRecomendation:
-    def __init__(self, filename=""):
-        self.filename = filename
+    def __init__(
+        self, dataset="", retrieval_types="file"):
+        """
+        this model would generate properties that gonna used on the 
+        job recomendation model
+
+        <h2>Parameters</h2>
+
+        dataset = name of the dataset file, or the dataframe
+
+        retrieval_types = how the data would get retrieved, neither by 
+        take the file at root/src/data folder, or by directly put dataframe
+        on it
+
+        filter_on_each_column = list name of the column that gonna be used 
+        for label encoding, list filled with a string
+
+        filters_dict_in_list = list dict of the filter that used for label
+        encoding
+
+        dropped_columns = list of column that would get dropped
+
+        one_hot_column = list of column that would get one hot encoding
+
+        mean_numeric = list of column that would get the mean of a numeric 
+        column (see the function at ProcessData class)
+
+        seperators = list of seperators for mean_numeric
+
+        model_type = model type that would get used (kmeans, dbscan)
+
+        dimensional_reduction_type = dimensional reduction method that used
+        (autoencoder, pca)
+
+        <h2>optonal parameter</h2> 
+
+        n_cluster = only used when the model use Kmeans model 
+
+        min_sample = only used when the model use DBSCAN model
+
+        hidden_layer = the list of hidden layer in the autoencoder
+        
+        loss = loss that used for evaluate the autoencoder 
+        (see the model in transformer class) 
+        
+        epoch = epoch for autoencoder training
+        
+        to_shape = reduction of the autoencoder
+        
+        n_components = reduction of the pca method 
+        """
+        self.dataset = dataset
+
+        self.retrieval_types = retrieval_types
 
         self.df = None
-
-        self.preprocessing = Preprocessing
 
         self.retrieve_dataset = RetrieveDataset
 
         self.process_data = ProcessData
 
+        self.models = ModelGeneration
+
         self.result_on_each_filter = []
 
         self.filter_column_name = [
-            "experience_level", "company_size","employment_type"]
+            "experience_level","company_size","employment_type"]
         
         self.data_size = 0
-
-        self.experience_level_hirarchy = {
-            "Entry":1, "Mid":2, "Senior":3}
-
-        self.company_size_hirarchy = {
-            'Startup':1, 'Mid':2, 'Large':3}
-
-        self.employment_type_hirarchy = {
-            'Internship':1,'Contract':2, 'Full-time':3, 'Remote':4}
         
         self.filters_dict_in_list = [
-                self.experience_level_hirarchy, self.company_size_hirarchy,
-                self.employment_type_hirarchy
+                {"Entry":1, "Mid":2, "Senior":3}, 
+                {'Startup':1, 'Mid':2, 'Large':3},
+                {'Internship':1,'Contract':2, 'Full-time':3, 'Remote':4}
             ]
         
         self.dropped_columns = [
@@ -49,18 +92,41 @@ class JobRecomendation:
         
         self.mean_numeric = ["salary_range_usd"]
 
+        self.separators = ["-"]
+
+        self.datetime_convertion = []
+
         self.model_type = "kmeans"
+
+        self.dimensional_reduction_type = "autoencoder"
 
         self.n_cluster = 3
 
         self.min_sample = 5
 
+        self.hidden_layer = [32 ,16, 8]
+
+        self.loss = ""
+
+        self.epoch = 5
+
+        self.to_shape = 4
+
+        self.n_components = 4
+
     def initiate(self):
-        try:
-            self.df = self.retrieve_dataset.get_DataFrame(
-                "src/data/" + self.filename)
-        except:
-            print("File Not Founded")
+        """
+        seperate function to initiate job recomendation model
+        """
+        match self.retrieval_types:
+            case "file":
+                try:
+                    self.df = self.retrieve_dataset.get_DataFrame(
+                        "src/data/" + self.dataset)
+                except:
+                    print("File Not Founded")
+            case "dataframe":
+                self.df = self.dataset
 
         self.result = self.df.copy()
 
@@ -69,17 +135,31 @@ class JobRecomendation:
         self.__last_step()
     
     def __first_step(self,df=DataFrame([])):
-        list_one_hot_data = self.preprocessing.one_hot_encoder(
+        """
+        first step of the algorithm (preprocessing)
+
+        <h2>Parameters</h2>
+
+        df = dataframe that gonna be processed
+
+        <h2>Return</h2>
+
+        dataframe that already get processed
+        """
+        list_one_hot_data = self.process_data.one_hot_encoder(
             df=df, feature_list=self.one_hot_column, 
             dataframe_result=self.one_hot_column
         )
 
-        salary_range_usd = self.preprocessing.mean_of_columns(
-            df=df, used_columns=self.mean_numeric)
+        list_of_datetime_convertion = self.process_data.batch_datetime_convert(
+            df=df, columns=self.datetime_convertion)
+
+        mean_columns = self.process_data.batch_mean_processor(
+            df=df, columns=self.mean_numeric, sep=self.separators)
 
         used_df = self.df.copy()
         
-        used_df = self.preprocessing.batch_label_encoding_process(
+        used_df = self.process_data.batch_label_encoding_process(
             df=used_df, columns=self.filter_column_name, filters=self.filters_dict_in_list
         )
 
@@ -90,12 +170,19 @@ class JobRecomendation:
         for i in list_one_hot_data:
             combined_data = self.process_data.combineDataFrame(
                 [combined_data, i], axis=1)
+            
+        processed_dataframe = [
+            used_df, combined_data, list_of_datetime_convertion, mean_columns
+        ]
+
+        flatters = Crawlers()
+
+        flatters.flatten_list(processed_dataframe)
+
+        processed_dataframe = flatters.get_result()
 
         used_df = self.process_data.combineDataFrame(
-            [used_df, combined_data], axis=1)
-
-        used_df = self.process_data.combineDataFrame(
-            [used_df, salary_range_usd], axis=1)
+            processed_dataframe, axis=1)
         
         self.employment_datas = JobRecomendation.applied_filters_to_dataframe(
             df=used_df,
@@ -112,6 +199,24 @@ class JobRecomendation:
     def applied_filters_to_dataframe(
         df=DataFrame([]),func=lambda x: x, 
         columns=[str], filters=[dict]) -> list:
+        """
+        function to applied filters to dataframe
+
+        <h2>Parameters</h2>
+
+        df = dataframe that want to get processed
+
+        func = function that applied the filters 
+        (generate_list_from_dict from JobRecomendation class)
+
+        columns = list of string that filled with columns name
+
+        filters = list of dict that act as filter for columns
+
+        <h2>Return</h2>
+
+        flattened result of the filtered df
+        """
         result = JobRecomendation.combined_filters(
             df=df, func=func, columns=columns, filters=filters
         )
@@ -125,6 +230,21 @@ class JobRecomendation:
     @staticmethod
     def generate_list_from_dict(
             df=DataFrame([]), column="", filters=dict):
+        """
+        function to generate a list from the dictionary
+
+        <h2>Parameters</h2>
+
+        df = dataframe that want to be processed
+
+        columns = column that will get processed
+
+        filters = dict that act as label
+
+        <h2>Return</h2>
+
+        list of the filtered label, seperate by index
+        """
         return [df[df[column] == i].copy().drop(
                 [column], axis=1) for i in filters.values()]
     
@@ -132,6 +252,24 @@ class JobRecomendation:
     def combined_filters(
             df=DataFrame([]),func=generate_list_from_dict, columns=[str], 
             filters=[dict]):
+        """
+        function to combine all the processed list into one big flattened list
+
+        <h2>Parameters</h2>
+        
+        df = dataframe that want to be processed
+
+        func = function that will used as executor 
+        (generate_list_from_dict from JobRecomendation)
+
+        columns = list of column name that will be processed
+
+        filters = list of dict that act as filter for label encoding
+
+        <h2>Return</h2>
+
+        flattened list of processed df
+        """
         result = None
         if(len(columns) == len(filters)):
             if(len(columns) == 1):
@@ -151,25 +289,30 @@ class JobRecomendation:
         return result
 
     def __last_step(self):
+        """
+        last step of the algorithm (model implementation)
+        """
         index_data_list = [i.index for i in self.employment_datas]
 
         self.scaler = self.process_data.scalling(
             self.df.copy().drop(self.filter_column_name, 
             axis=1), "Min Max Scaler")
 
-        self.autoencoder = self.preprocessing.dimensional_reduction_generation(
+        self.autoencoder = self.process_data.dimensional_reduction_generation(
             x=self.df.copy().drop(self.filter_column_name, 
-            axis=1), scaler=self.scaler, types="autoencoder")
+            axis=1), scaler=self.scaler, types=self.dimensional_reduction_type,
+            hidden_layer=self.hidden_layer, loss=self.loss, epoch=self.epoch,
+            to_shape=self.to_shape, n_components=self.n_components)
 
         match self.model_type:
             case "kmeans":
-                self.model_list = self.preprocessing.model_generation(
+                self.model_list = self.models.model_generation(
                     x=self.employment_datas, 
                     preprocessing_implementation=self.preprocessing_implementation,
                     model_type=self.model_type, 
                     n_cluster=self.n_cluster)
             case "dbscan":
-                self.model_list = self.preprocessing.model_generation(
+                self.model_list = self.models.model_generation(
                     x=self.employment_datas,
                     preprocessing_implementation=self.preprocessing_implementation,
                     model_type=self.model_type,
@@ -191,27 +334,73 @@ class JobRecomendation:
             result_on_each_filter, axis=0).sort_index()
 
     def __model_applicator(self,x=DataFrame([]),
-            model=KmeansModel):
+            model=KmeansModel|DbScanModel) -> ndarray:
+        """
+        model prediction result 
+
+        <h2>Parameters</h2>
+
+        x = dataframe that want to get predicted
+
+        model = model used for the algorithm (Kmeans, DBSCAN)
+
+        <h2>Return</h2>
+
+        a numpy result of the prediction
+        """
         return model.predict(self.preprocessing_implementation(x))
     
-    def get_employment_type_keys(self) -> dict:
-        return self.employment_type_hirarchy.keys()
-    
-    def get_company_size_keys(self) -> dict:
-        return self.company_size_hirarchy.keys()
-    
-    def get_experience_level_keys(self) -> dict:
-        return self.experience_level_hirarchy.keys()
+    def get_filters(self, filters_index=0) -> dict:
+        """
+        get the filters base on index 
+        (see self.filters_dict_in_list at JobRecomendation)
+
+        <h2>Parameters</h2>
+
+        filters_index = filter that want to retrieved
+
+        <h2>Return</h2>
+        
+        filter in the dict form
+        """
+        return self.filters_dict_in_list[filters_index].keys()
     
     def preprocessing_implementation(
-            self, x=DataFrame([])) -> DataFrame | ndarray:
+            self, x=DataFrame([])) -> ndarray:
+        """
+        function to implement preprocessing to the dataframe
+        (scaling -> autoencoder -> numpy array)
+
+        <h2>Parameters</h2>
+
+        x = dataframe that want to get processed
+
+        <h2>Return</h2>
+
+        numpy array filled with result of preprocessing
+        """
         return self.autoencoder.get_result(
             self.scaler.transform(x))
     
     def getData(self, filters=[str], hardness_level=None):
+        """
+        function to get result of model classifiation
+
+        <h2>Parameters</h2>
+        
+        filters = list of string that will act as filter
+
+        hardness_level = int value of the label from model prediction,
+        none if want to get all the prediction in that specific filters
+
+        <h2>Return</h2>
+
+        Dataframe result that filtered with hardness level selection
+        """
         result = self.result
         if(len(filters) == len(self.filter_column_name)):
             for i in range(len(filters)):
+                print(result)
                 result = result[
                     result[self.filter_column_name[i]] == filters[i]]
         if(hardness_level != None):
@@ -219,92 +408,4 @@ class JobRecomendation:
                 result = result[result["label"] == hardness_level]
             except:
                 result = "that employment type didn't exist"
-        return result
-    
-class Preprocessing:
-    @staticmethod
-    def one_hot_encoder(
-        df=DataFrame([]), feature_list=[str], dataframe_result=[str]):
-        return [ProcessData.oneHotEncoding(df[feature_list[i]],
-                dataframe_name=dataframe_result[i]) for i in range(len(
-                    feature_list))]
-    
-    @staticmethod
-    def mean_of_columns(df=DataFrame([]), used_columns="") -> DataFrame:
-        """
-            split one columns that still seperated by - \n
-            example : 1000-2999
-
-            return : DataFrame, else void
-        """
-        if(type(used_columns) == str):
-            #get the data that want to be splitted
-            salary_range_usd = df[used_columns].copy()
-            return DataFrame(DataFrame(salary_range_usd.map(
-                arg=lambda x: [int(i) for i in str.split(x, sep="-")]
-            ).to_list(), columns=[
-                "min_range_" + used_columns, 
-                "max_range_slary" + used_columns]).mean(
-                axis=1), columns=["mean_" + used_columns])
-        else:
-            print("not string, cant be used")
-
-    @staticmethod
-    def label_encoding(
-        df=DataFrame([]), filter_dict=dict) -> DataFrame:
-        return ProcessData.labelEncoding(
-            df=df, format=filter_dict)
-    
-    @staticmethod
-    def batch_label_encoding_process(
-        df=DataFrame([]), columns=[str], 
-        filters=[dict]) -> DataFrame:
-        for i in range(len(columns)):
-            df[columns[i]] = Preprocessing.label_encoding(
-                df[columns[i]],filter_dict=filters[i])
-        return df
-    
-    @staticmethod
-    def dimensional_reduction_generation(
-        x=DataFrame([]),
-        scaler=ProcessData.scalling, types="pca"):
-        result = x
-        match types:
-            case "autoencoder":
-                hidden_layer =  [32 ,16, 8]
-                loss = ""
-                epoch = 5
-                to_shape = 4
-
-                result = Transformer.transform(
-                scaler.transform(result), input_shape=x.shape[1], 
-                to_shape=to_shape, hidden_layer=hidden_layer, 
-                loss=loss, epoch=epoch)
-            case "pca":
-                n_components = 4
-
-                result = ProcessData.pcaDimentionalityReduction(
-                    scaler.transform(result), n_components=n_components
-                )
-
-        return result
-    
-    @staticmethod
-    def model_generation(
-        x=[], 
-        preprocessing_implementation=JobRecomendation.preprocessing_implementation,
-        model_type="kmeans",
-        n_cluster=3, min_sample=5):
-        result = None
-
-        match model_type:
-            case "kmeans":
-                result =  [KmeansModel(
-                        df=preprocessing_implementation(i), 
-                        n_cluster=n_cluster) for i in x]
-            case "dbscan":
-                result = [DbScanModel(
-                        df=preprocessing_implementation(i), 
-                        n_cluster=n_cluster) for i in x]
-                
         return result

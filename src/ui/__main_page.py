@@ -7,17 +7,21 @@ class MainPage:
 
         self.render(self.start_page())
 
-        self.company_size_dict = job_recomendation.get_company_size_keys()
-        self.employment_type_dict = job_recomendation.get_employment_type_keys()
-        self.experience_level_dict = job_recomendation.get_experience_level_keys()
+        #get the dict from the model, for generate filter
+        self.experience_level_dict = job_recomendation.get_filters(0)
+        self.company_size_dict = job_recomendation.get_filters(1)
+        self.employment_type_dict = job_recomendation.get_filters(2)
 
         (employment_type, company_size, 
         experience_level,hardness_level) = self.filter_generation()
 
         self.render(self.results_section())
 
+        #if button clicked
         if(st.button("search")):
-            self.show_result(employment_type, company_size, experience_level,hardness_level)
+            self.show_result(
+                employment_type, company_size, experience_level,
+                hardness_level)
 
     def start_page(self):
         return (
@@ -37,6 +41,9 @@ class MainPage:
             """)
 
     def render(self,fstream=f""""""):
+        """
+        used to render any user interaction from the fstring
+        """
         st.markdown(fstream, unsafe_allow_html=True)
 
     def results_section(self):
@@ -45,28 +52,52 @@ class MainPage:
     def show_result(
             self,employment_type="", company_size="", experience_level="",
             hardness_level=""):
+        """
+        function for show the results of model prediction
+
+        parameter :
+
+        employment_type = type of employment filter
+
+        company_size = size of company filter
+
+        experience_level = level of experience filter
+
+        hardness_level = level of job difficulty 
+        """
         result = None
         match hardness_level:
             case "All":
                 result = self.job_recomendation.getData(
-                    filters=[experience_level,company_size, employment_type],
+                    filters=[experience_level,company_size,employment_type],
                     hardness_level=None)
             case "Lowest":
                 result = self.job_recomendation.getData(
-                    filters=[experience_level,company_size, employment_type],
+                    filters=[experience_level,company_size,employment_type],
                     hardness_level=0)
             case "Middle":
                 result = self.job_recomendation.getData(
-                    filters=[experience_level,company_size, employment_type],
+                    filters=[experience_level,company_size,employment_type],
                     hardness_level=1)
             case "Highest":
                 result = self.job_recomendation.getData(
-                    filters=[experience_level,company_size, employment_type],
+                    filters=[experience_level,company_size,employment_type],
                     hardness_level=2)
 
         st.write(result)
 
     def filter_generation(self):
+        """
+        function to generate filter ui
+
+        return :
+
+        employment_type = str
+
+        experience_level = str
+
+        company_level = str
+        """
         employment_type = st.selectbox(
             label="Employment Level",
             options=[
