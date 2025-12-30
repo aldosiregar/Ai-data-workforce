@@ -298,7 +298,7 @@ class JobRecomendation:
             self.df.copy().drop(self.filter_column_name, 
             axis=1), "Min Max Scaler")
 
-        self.autoencoder = self.process_data.dimensional_reduction_generation(
+        self.dimensional_reduction_model = self.process_data.dimensional_reduction_generation(
             x=self.df.copy().drop(self.filter_column_name, 
             axis=1), scaler=self.scaler, types=self.dimensional_reduction_type,
             hidden_layer=self.hidden_layer, loss=self.loss, epoch=self.epoch,
@@ -379,8 +379,13 @@ class JobRecomendation:
 
         numpy array filled with result of preprocessing
         """
-        return self.autoencoder.get_result(
-            self.scaler.transform(x))
+        match self.dimensional_reduction_type:
+            case "pca":
+                return self.dimensional_reduction_model.transform(
+                    self.scaler.transform(x))
+            case "autoencoder":
+                return self.dimensional_reduction_model.get_result(
+                    self.scaler.transform(x))
     
     def getData(self, filters=[str], hardness_level=None):
         """
