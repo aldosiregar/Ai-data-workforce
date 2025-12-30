@@ -1,1 +1,1 @@
-from __main import PageNavigation
+from src.controller.__main import PageNavigation
