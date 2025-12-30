@@ -28,7 +28,7 @@ class Autoencoder(Model):
 
         #decoder
         self.decoder = Sequential([
-            layers.Dense(reduce_prod(to_shape,), activation="relu"),
+            layers.Dense(reduce_prod(to_shape,).to_numpy(), activation="relu"),
             layers.Dropout(0.3)])
         
         index = len(hidden_layer) - 1
