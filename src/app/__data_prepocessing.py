@@ -327,11 +327,11 @@ class ProcessData:
         """
         result = x
         match types:
-            case "autoencoder":
-                result = Transformer.transform(
-                scaler.transform(result), input_shape=x.shape[1], 
-                to_shape=to_shape, hidden_layer=hidden_layer, 
-                loss=loss, epoch=epoch)
+            #case "autoencoder":
+                #result = Transformer.transform(
+                #scaler.transform(result), input_shape=x.shape[1], 
+                #to_shape=to_shape, hidden_layer=hidden_layer, 
+                #loss=loss, epoch=epoch)
             case "pca":
                 result = ProcessData.pcaDimentionalityReduction(
                     scaler.transform(result), n_components=n_components
