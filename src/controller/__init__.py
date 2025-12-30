@@ -1,1 +1,1 @@
-from .__main import PageNavigation
+from __main import PageNavigation

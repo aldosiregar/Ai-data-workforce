@@ -98,7 +98,7 @@ class JobRecomendation:
 
         self.model_type = "kmeans"
 
-        self.dimensional_reduction_type = "autoencoder"
+        self.dimensional_reduction_type = "pca"
 
         self.n_cluster = 3
 
