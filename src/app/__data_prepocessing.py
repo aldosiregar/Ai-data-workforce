@@ -2,7 +2,6 @@ from pandas import DataFrame, Series ,to_datetime, concat
 from datetime import datetime
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-from .__autoencoder import Transformer
 
 class ProcessData:
     @staticmethod
