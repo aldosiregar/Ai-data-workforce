@@ -1,4 +1,5 @@
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import KMeans
+from sklearn.neighbors import NearestNeighbors
 from pandas import DataFrame
 from numpy import array
 
@@ -11,13 +12,11 @@ class KmeansModel:
     def predict(self, df=DataFrame([])) -> array:
         return self.model.predict(df)
     
-class DbScanModel:
-    def __init__(self, df=DataFrame([]), eps=0.5, min_sample=5):
+class NearestMatch:
+    def __init__(self, df=DataFrame([]), n_neighbors=5):
         self.df = df
-        self.model = DBSCAN(eps=eps, min_samples=min_sample)
-
-    def predict(self, df=DataFrame([]))-> array:
-        return self.model.fit_predict(df)
+        self.model = NearestNeighbors(n_neighbors=n_neighbors)
+        self.model.fit(df)
     
 class ModelGeneration:
     @staticmethod
@@ -25,7 +24,7 @@ class ModelGeneration:
         x=[], 
         preprocessing_implementation=lambda x:x,
         model_type="kmeans",
-        n_cluster=3, min_sample=5):
+        n_cluster=3, n_neighbors=5):
         result = None
 
         match model_type:
@@ -33,9 +32,9 @@ class ModelGeneration:
                 result =  [KmeansModel(
                         df=preprocessing_implementation(i), 
                         n_cluster=n_cluster) for i in x]
-            case "dbscan":
-                result = [DbScanModel(
+            case "NearestNeighbors":
+                result = [NearestMatch(
                         df=preprocessing_implementation(i), 
-                        min_sample=min_sample) for i in x]
+                        n_neighbors=n_neighbors) for i in x]
                 
         return result

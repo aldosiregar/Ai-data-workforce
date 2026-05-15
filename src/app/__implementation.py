@@ -35,16 +35,18 @@ class JobRecomendation:
 
         seperators = list of seperators for mean_numeric
 
-        model_type = model type that would get used (kmeans, dbscan)
+        model_type = model type that would get used (kmeans, NearestNeighbors)
 
         dimensional_reduction_type = dimensional reduction method that used
         (autoencoder, pca)
+
+        scaler_method = method of the scalling (StandardScaller, Min Max Scaler, Normalization)
 
         <h2>optonal parameter</h2> 
 
         n_cluster = only used when the model use Kmeans model 
 
-        min_sample = only used when the model use DBSCAN model
+        n_neighbors = only used when the model use NearestNeighbors model
 
         hidden_layer = the list of hidden layer in the autoencoder
         
@@ -83,12 +85,13 @@ class JobRecomendation:
             ]
         
         self.dropped_columns = [
-        "skills_required", "tools_preferred", "industry", 
-        "job_title", "salary_range_usd", 
-        "company_name", "location", "posted_date", "job_id"]
+            "skills_required", "tools_preferred", "industry", 
+            "job_title", "salary_range_usd", 
+            "company_name", "location", "posted_date", "job_id"]
         
-        self.one_hot_column = ["skills_required", "tools_preferred", 
-                               "industry", "job_title"]
+        self.one_hot_column = [
+            "skills_required", "tools_preferred", 
+            "industry", "job_title"]
         
         self.mean_numeric = ["salary_range_usd"]
 
@@ -96,11 +99,13 @@ class JobRecomendation:
 
         self.datetime_convertion = []
 
-        self.model_type = "kmeans"
+        self.model_type = "NearestNeighbors"
 
-        self.dimensional_reduction_type = "pca"
+        self.dimensional_reduction_type = "autoencoder"
 
         self.n_cluster = 3
+
+        self.n_neighbors = 5
 
         self.min_sample = 5
 
@@ -108,11 +113,13 @@ class JobRecomendation:
 
         self.loss = ""
 
-        self.epoch = 5
+        self.epoch = 30
 
-        self.to_shape = 4
+        self.latent_dim = 4
 
         self.n_components = 4
+
+        self.scaler_method = "Min Max Scaler"
 
     def initiate(self):
         """
@@ -296,13 +303,13 @@ class JobRecomendation:
 
         self.scaler = self.process_data.scalling(
             self.df.copy().drop(self.filter_column_name, 
-            axis=1), "Min Max Scaler")
+            axis=1), self.scaler_method)
 
         self.dimensional_reduction_model = self.process_data.dimensional_reduction_generation(
             x=self.df.copy().drop(self.filter_column_name, 
             axis=1), scaler=self.scaler, types=self.dimensional_reduction_type,
             hidden_layer=self.hidden_layer, loss=self.loss, epoch=self.epoch,
-            to_shape=self.to_shape, n_components=self.n_components)
+            latent_dim=self.latent_dim, n_components=self.n_components)
 
         match self.model_type:
             case "kmeans":
@@ -311,12 +318,12 @@ class JobRecomendation:
                     preprocessing_implementation=self.preprocessing_implementation,
                     model_type=self.model_type, 
                     n_cluster=self.n_cluster)
-            case "dbscan":
+            case "NearestNeighbors":
                 self.model_list = self.models.model_generation(
                     x=self.employment_datas,
                     preprocessing_implementation=self.preprocessing_implementation,
                     model_type=self.model_type,
-                    min_sample=self.min_sample
+                    n_neighbors=self.n_neighbors
                 )
 
         result_respect_to_filter = [self.__model_applicator(

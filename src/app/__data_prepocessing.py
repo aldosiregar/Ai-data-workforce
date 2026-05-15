@@ -293,7 +293,7 @@ class ProcessData:
     @staticmethod
     def dimensional_reduction_generation(
         x=DataFrame([]),scaler=scalling, types="autoencoder",
-        hidden_layer=[32 ,16, 8], loss="", epoch=5, to_shape=4,
+        hidden_layer=[32 ,16, 8], loss="", epoch=5, input_dim=4,
         n_components=4):
         """
         function to generate model of dimensional reduction, the type that 
@@ -317,7 +317,7 @@ class ProcessData:
         
         epoch = epoch for autoencoder training
         
-        to_shape = reduction of the autoencoder
+        input_dim = reduction of the autoencoder
         
         n_components = reduction of the pca method 
 
@@ -330,7 +330,7 @@ class ProcessData:
             case "autoencoder":
                 result = Transformer.transform(
                 scaler.transform(result), input_shape=x.shape[1], 
-                to_shape=to_shape, hidden_layer=hidden_layer, 
+                input_dim=input_dim, hidden_layer=hidden_layer, 
                 loss=loss, epoch=epoch)
             case "pca":
                 result = ProcessData.pcaDimentionalityReduction(
